@@ -1,0 +1,10 @@
+﻿python :   File "<string>", line 56
+At line:1 char:1
++ python -c "
++ ~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (  File "<string>", line 56:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+    print(f'Verdict: {" SAFE\
+                      ^
+SyntaxError: unterminated string literal (detected at line 56)
