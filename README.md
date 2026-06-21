@@ -168,13 +168,16 @@ python audit.py --submission submission.csv --candidates "[PUB] India_runs_data_
 FINAL_SCORE = 0.80 × BASE_SCORE + 0.20 × BEHAVIORAL_SCORE
 
 BASE_SCORE = (
-    0.28 × semantic_score      ← P1/P99-rescaled cosine similarity
-  + 0.22 × skill_score         ← P95-normalized semantic anchor matching
-  + 0.18 × production_score    ← Keyword evidence (T1 + T2 − negs), v6 temporal
-  + 0.15 × career_depth_score  ← YoE + tenure-weighted company + stability + v6 title velocity
-  + 0.12 × title_score         ← Full-coverage soft gradient (no hard zeroes)
-  + 0.05 × education_score     ← Institution tier + field relevance
-  + 0.05 × location_score      ← Additive, not a multiplier
+    0.22 × semantic_score      ← P1/P99-rescaled cosine similarity
+  + 0.15 × skill_score         ← P95-normalized semantic anchor matching
+  + 0.20 × production_score    ← Keyword evidence (T1 + T2 − negs), v6 temporal
+  + 0.14 × career_depth_score  ← YoE + tenure-weighted company + stability + v6 title velocity
+  + 0.08 × title_score         ← Full-coverage soft gradient (no hard zeroes)
+  + 0.08 × ownership_score     ← Ownership signals (hits / 5.0)
+  + 0.08 × eval_score          ← Evaluation signals (hits / 6.0)
+  + 0.03 × retrieval_score     ← Retrieval/IR signals (hits / 6.0)
+  + 0.01 × education_score     ← Institution tier + field relevance
+  + 0.01 × location_score      ← Additive, not a multiplier
 )
 
 BEHAVIORAL_SCORE = (
@@ -190,7 +193,7 @@ HARD GATE: consistency_score < 0.70  →  FINAL_SCORE = 0.0
 
 ### 5.2 Component Functions
 
-#### `compute_semantic_score(idx)` — 28% of base
+#### `compute_semantic_score(idx)` — 22% of base
 Measures how well the candidate's text aligns with the JD.
 
 - **Input:** pre-computed embeddings (no model call at runtime)
@@ -198,7 +201,7 @@ Measures how well the candidate's text aligns with the JD.
 - **Normalization:** P1/P99 percentile clip — MiniLM cosine scores cluster in `~[0.1, 0.55]`; min-max is outlier-sensitive, P1/P99 is robust
 - **Career weighted higher** (0.65 vs 0.35) because summaries are often generic/aspirational while career descriptions contain actual work evidence
 
-#### `compute_skill_score(candidate)` — 22% of base
+#### `compute_skill_score(candidate)` — 15% of base
 Semantic anchor matching — not keyword counting.
 
 - 7 JD-aligned skill anchors cover: embeddings/retrieval, evaluation (NDCG/MRR), Python quality, LLM fine-tuning, NLP/IR, recommendation systems, scalability
@@ -207,7 +210,7 @@ Semantic anchor matching — not keyword counting.
 - Score weighted by: `max_similarity × proficiency × (duration_bonus) × endorsements × assessment_score`
 - **Denominator = P95** of population totals — preserves differentiation at the top without clipping the best candidates
 
-#### `compute_production_score(candidate)` — 18% of base
+#### `compute_production_score(candidate)` — 20% of base
 Evidence that the candidate has shipped real systems, not just studied them.
 
 **T1 keywords** (strong, direct production evidence):
@@ -232,7 +235,7 @@ Evidence that the candidate has shipped real systems, not just studied them.
 - GitHub bonus: +0.10 if gh≥60, +0.05 if gh≥30, 0 if gh<0
 - **v6 temporal penalty:** −0.05 if candidate has AI/ML skills but ALL roles started post-2022 (JD: *"people who understood retrieval before it became fashionable"*)
 
-#### `compute_career_depth_score(candidate)` — 15% of base
+#### `compute_career_depth_score(candidate)` — 14% of base
 Four sub-signals combined:
 
 | Sub-signal | Weight | Details |
@@ -246,7 +249,7 @@ Company scores: Swiggy/Razorpay/CRED = 0.95, TCS/Infosys/Wipro = 0.50 (soft, ten
 
 **v6 Title velocity penalty:** if avg tenure < 20 months AND 3+ distinct title levels across career → −0.05 applied to career score. Catches the "title-chaser" anti-pattern the JD explicitly names.
 
-#### `compute_title_score(candidate)` — 12% of base
+#### `compute_title_score(candidate)` — 8% of base
 Soft gradient lookup — no hard zeroes. Full dataset coverage.
 
 | Title | Score | Rationale |
@@ -262,6 +265,31 @@ Soft gradient lookup — no hard zeroes. Full dataset coverage.
 | Business Analyst | 0.22 | Non-technical |
 | HR Manager | 0.10 | Irrelevant |
 | Unknown titles | 0.35 | Neutral default |
+
+#### `compute_ownership_score(candidate)` — 8% of base
+Computes ownership score scaled by hits / 5.0.
+
+- **Signals:** "owned", "owner", "end to end", "e2e", "architected", "designed and built", "built from scratch", "responsible for", "led implementation", "technical lead", "drove migration"
+- Hits are scaled by 5.0 and clipped to 1.0.
+
+#### `compute_eval_score(candidate)` — 8% of base
+Computes evaluation score scaled by hits / 6.0.
+
+- **Signals:** "ndcg", "mrr", "map", "offline benchmark", "online experiment", "ab test", "a/b test", "evaluation framework", "ranking quality", "precision at k", "recall at k", "recruiter feedback"
+- Hits are scaled by 6.0 and clipped to 1.0.
+
+#### `compute_retrieval_score(candidate)` — 3% of base
+Computes retrieval score scaled by hits / 6.0.
+
+- **Signals:** "bm25", "dense retrieval", "hybrid retrieval", "learning-to-rank", "learning to rank", "reranking", "re-ranking", "faiss", "hnsw", "ann search", "embedding model", "retrieval quality"
+- Hits are scaled by 6.0 and clipped to 1.0.
+
+#### `compute_education_score(candidate)` — 1% of base
+Tier + field relevance, capped at 1.0.
+
+#### `compute_location_score(candidate)` — 1% of base
+Additive location component using profile.country directly.
+
 
 #### `compute_behavioral_score(candidate)` — 20% of final
 Acts as an availability gate modifier, not a ranking booster.
@@ -304,7 +332,7 @@ Good GitHub score (≥30):                                653  ← true top-tier
 **Why behavioral is 20% (not higher):**
 The real contest for top-10 is among ~650 candidates, not 100K. Behavioral signals narrow 100K → 2K → 650 before base scoring differentiates within that pool. A 20% behavioral weight is enough to push inactive candidates (availability ≈ 0.10) out of the top-10 even with strong base scores.
 
-**Why semantic is 28% (highest single weight):**
+**Why semantic is 22% (highest single weight):**
 It's the only signal that can catch a strong candidate who doesn't use the "right keywords" but whose career text is substantively about retrieval/ranking systems. It compensates for the keyword-trap the JD explicitly warns about.
 
 **Why consistency is a gate and not a score component:**
@@ -313,7 +341,7 @@ It's the only signal that can catch a strong candidate who doesn't use the "righ
 **Why oar=−1 maps to 0.50 (neutral):**
 60% of candidates have never received an offer. Treating them as oar=0 (negative) systematically penalizes the majority for having no offer history, which is irrelevant to their fit. Verified safe: top-20 overlap = 18/20 before and after this fix.
 
-**Why location is additive (5%) not a gate:**
+**Why location is additive (1%) not a gate:**
 75% of candidates are already India-based. A Singapore candidate at 0.97 overall capability cannot be zeroed by geography when the JD says "case-by-case" for outside India.
 
 ---
@@ -345,6 +373,9 @@ The full ranker. Loads all artifacts at startup (zero model calls at runtime).
 | `compute_title_score(candidate)` | Soft gradient lookup |
 | `compute_education_score(candidate)` | Institution tier + field boost |
 | `compute_location_score(candidate)` | Country-based additive score |
+| `compute_ownership_score(candidate)` | Ownership signals score scaled by hits / 5.0 |
+| `compute_eval_score(candidate)` | Evaluation signals score scaled by hits / 6.0 |
+| `compute_retrieval_score(candidate)` | Retrieval signals score scaled by hits / 6.0 |
 | `compute_availability_score(sig)` | Recency + open_to_work |
 | `compute_engagement_score(sig)` | rr + icr + oar (neutral for −1) |
 | `compute_momentum_score(sig)` | 30-day activity signals |
