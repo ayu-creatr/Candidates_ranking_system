@@ -1,8 +1,8 @@
 # Redrob AI Candidate Ranker — v6
 # Python 3.10+
-sentence-transformers==2.7.0
-numpy==1.26.4
-scikit-learn==1.4.2
-tqdm==4.66.4
-streamlit==1.35.0
+sentence-transformers>=2.7.0
+numpy>=1.26.0
+scikit-learn>=1.4.0
+tqdm>=4.66.0
+streamlit>=1.35.0
 
