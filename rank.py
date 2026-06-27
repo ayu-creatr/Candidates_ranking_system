@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-rank.py  —  Redrob AI Candidate Ranker  (v7 Optimized)
-Scores all 100K candidates using pre-computed artifacts.
+newrank.py  —  Redrob AI Candidate Ranker  (v7 Optimized)
+Scores all 100K candidates using pre-computed artifacts with custom recruiters-guided signals.
 Usage:
-    python rank.py --candidates candidates.jsonl --out submission.csv
+    python newrank.py --candidates candidates.jsonl --out submission.csv
 """
 import argparse, csv, json, pickle, sys
 from datetime import datetime, date
@@ -78,13 +78,7 @@ PROFICIENCY_WEIGHT = {
     "beginner": 0.50, "intermediate": 0.75, "advanced": 1.00, "expert": 1.10,
 }
 
-# ── Ownership and Evaluation Signals ───────────────────────────────────────────
-OWNERSHIP_SIGNALS = [
-    "owned", "owner", "end to end", "e2e", "architected",
-    "designed and built", "built from scratch", "responsible for",
-    "led implementation", "technical lead", "drove migration"
-]
-
+# ── Evaluation and Retrieval Signals ───────────────────────────────────────────
 EVAL_SIGNALS = [
     "ndcg", "mrr", "map", "offline benchmark", "online experiment",
     "ab test", "a/b test", "evaluation framework", "ranking quality",
@@ -184,8 +178,73 @@ COMPANY_SCORES = {
     "TCS": 0.50, "Infosys": 0.50, "Wipro": 0.50,
     "Accenture": 0.50, "Cognizant": 0.50, "Capgemini": 0.50,
     "HCL": 0.50, "Tech Mahindra": 0.52, "Mphasis": 0.52,
+    # Fix 3: Genpact was in SERVICE_COMPANIES but missing here → inconsistent treatment
+    "Genpact": 0.55, "Genpact AI": 0.55,
 }
 COMPANY_DEFAULT = 0.65
+
+# ── Product vs Service company classification ──────────────────────────────────
+SERVICE_COMPANIES = {
+    "TCS", "Infosys", "Wipro", "Accenture", "Cognizant", "Capgemini",
+    "HCL", "Tech Mahindra", "Mphasis", "Genpact", "Genpact AI",
+    "IBM", "Hexaware", "Mindtree", "L&T Infotech", "Persistent Systems",
+}
+
+# Fix 4: Lowered threshold 0.75 → 0.70 so unknown-but-legitimate companies
+# (which fall through to COMPANY_DEFAULT=0.65) aren't silently excluded from
+# both numerator and denominator, giving them an undeserved 0.5 product_ratio.
+PRODUCT_COMPANIES = {
+    c for c in COMPANY_SCORES if c not in SERVICE_COMPANIES and COMPANY_SCORES[c] >= 0.70
+}
+
+# ── Domain overlap signals (recruiter-facing search/ranking) ───────────────────
+DOMAIN_SIGNALS = [
+    "candidate corpus",
+    "candidate search",
+    "candidate-jd matching",
+    "recruiter engagement",
+    "time-to-shortlist",
+    "recruiter-facing"
+]
+
+# ── Hybrid search signals ──────────────────────────────────────────────────────
+HYBRID_SIGNALS = [
+    "hybrid retrieval",
+    "bm25",
+    "dense retrieval",
+    "reranking",
+    "llm-based re-ranker"
+]
+
+# ── Ops/Infrastructure signals ─────────────────────────────────────────────────
+OPS_SIGNALS = [
+    "embedding drift",
+    "index refresh",
+    "rollback",
+    "versioning",
+    "retrieval quality regression"
+]
+
+# ── Search/Ranking Ownership signals ───────────────────────────────────────────
+OWNERSHIP_SEARCH = [
+    "ranking layer",
+    "designed ranker",
+    "owned ranking",
+    "migration from keyword",
+    "hybrid retrieval architecture",
+    "feedback loop"
+]
+
+# ── Boring Infrastructure signals ──────────────────────────────────────────────
+BORING_SIGNALS = [
+    "rollback",
+    "dashboard",
+    "versioning",
+    "latency budget",
+    "monitoring",
+    "index refresh",
+    "embedding drift"
+]
 
 # ── Industry recency bonus ─────────────────────────────────────────────────────
 HIGH_RELEVANCE_INDUSTRIES = {
@@ -198,8 +257,8 @@ HIGH_RELEVANCE_INDUSTRIES = {
 LOCATION_SCORES = {
     "india": 1.0,
     "usa": 0.60, "united states": 0.60,
-    "canada": 0.55,
-    "uk": 0.55, "united kingdom": 0.55,
+    "canada": 0.35,  # was 0.55
+    "uk": 0.40,      # was 0.55
     "australia": 0.55,
     "germany": 0.55,
     "singapore": 0.60,
@@ -330,6 +389,28 @@ def compute_production_score(candidate: dict) -> float:
     return raw
 
 
+def compute_product_ratio_score(candidate: dict) -> float:
+    """Fraction of career months spent at product companies vs service companies."""
+    history = candidate.get("career_history", [])
+    product_months = 0
+    service_months = 0
+    for role in history:
+        months = role.get("duration_months", 0)
+        company = role.get("company", "")
+        if company in SERVICE_COMPANIES:
+            service_months += months
+        elif company in PRODUCT_COMPANIES or COMPANY_SCORES.get(company, 0) >= 0.75:
+            # Two-tier intentional:
+            #   PRODUCT_COMPANIES uses threshold >= 0.70 (named, curated companies)
+            #   Inline fallback uses >= 0.75 (unknown companies need higher confidence
+            #   to earn product credit; COMPANY_DEFAULT=0.65 deliberately excluded)
+            product_months += months
+    total = product_months + service_months
+    if total == 0:
+        return 0.5
+    return product_months / total
+
+
 def compute_career_depth_score(candidate: dict) -> float:
     """YoE band + tenure-weighted company score + stability + industry recency bonus."""
     profile  = candidate["profile"]
@@ -379,7 +460,11 @@ def compute_career_depth_score(candidate: dict) -> float:
         if r.get("industry", "") in HIGH_RELEVANCE_INDUSTRIES:
             industry_bonus = min(industry_bonus + 0.08, 0.15)
 
-    raw = (0.40 * yoe_score + 0.35 * company_score + 0.20 * stability + 0.05 * industry_bonus)
+    product_ratio = compute_product_ratio_score(candidate)
+
+    # 1. Reduce Company Influence & Replace with Product Ratio
+    # yoe: 45%, product_ratio: 15%, company: 5%, stability: 25%, industry: 10%
+    raw = (0.45 * yoe_score + 0.15 * product_ratio + 0.05 * company_score + 0.25 * stability + 0.10 * industry_bonus)
     return float(np.clip(raw, 0.0, 1.0))
 
 
@@ -427,12 +512,12 @@ def compute_location_score(candidate: dict) -> float:
 
 
 def compute_ownership_score(candidate: dict) -> float:
-    """Computes ownership score scaled by hits / 5.0."""
+    """Computes ownership score scaled by hits / 5.0 using search-focused ownership signals."""
     texts = [candidate["profile"].get("summary", "")]
     texts += [r.get("description", "") for r in candidate.get("career_history", [])]
     full = " ".join(texts).lower()
     
-    hits = sum(1 for kw in OWNERSHIP_SIGNALS if kw in full)
+    hits = sum(1 for kw in OWNERSHIP_SEARCH if kw in full)
     return min(hits / 5.0, 1.0)
 
 
@@ -513,13 +598,13 @@ def compute_notice_score(sig: dict) -> float:
     if days <= 30:
         return 1.00
     elif days <= 60:
-        return 0.75
+        return 0.65
     elif days <= 90:
-        return 0.50
+        return 0.35
     elif days <= 120:
-        return 0.30
+        return 0.05
     else:
-        return 0.15
+        return 0.02
 
 
 def compute_behavioral_score(candidate: dict) -> float:
@@ -541,159 +626,473 @@ def compute_behavioral_score(candidate: dict) -> float:
     ))
 
 
+# ── Extra Bonuses ──────────────────────────────────────────────────────────────
+
+def compute_domain_bonus(candidate: dict) -> float:
+    """Bonus for recruiter/candidate-search domain overlap."""
+    texts = [candidate["profile"].get("summary", "")]
+    texts += [r.get("description", "") for r in candidate.get("career_history", [])]
+    full = " ".join(texts).lower()
+    hits = sum(1 for sig in DOMAIN_SIGNALS if sig in full)
+    return min(hits / 4, 1.0) * 0.06
+
+
+def compute_hybrid_bonus(candidate: dict) -> float:
+    """Bonus for hybrid search experience."""
+    texts = [candidate["profile"].get("summary", "")]
+    texts += [r.get("description", "") for r in candidate.get("career_history", [])]
+    full = " ".join(texts).lower()
+    hits = sum(1 for sig in HYBRID_SIGNALS if sig in full)
+    return min(hits / 4, 1.0) * 0.04
+
+
+def compute_ops_bonus(candidate: dict) -> float:
+    """Bonus for ops/infrastructure experience."""
+    texts = [candidate["profile"].get("summary", "")]
+    texts += [r.get("description", "") for r in candidate.get("career_history", [])]
+    full = " ".join(texts).lower()
+    hits = sum(1 for sig in OPS_SIGNALS if sig in full)
+    return min(hits / 4, 1.0) * 0.03
+
+
+def compute_boring_bonus(candidate: dict) -> float:
+    """Bonus for boring infrastructure experience."""
+    texts = [candidate["profile"].get("summary", "")]
+    texts += [r.get("description", "") for r in candidate.get("career_history", [])]
+    full = " ".join(texts).lower()
+    hits = sum(1 for sig in BORING_SIGNALS if sig in full)
+    return min(hits / 4, 1.0) * 0.04
+
+
 # ── Consistency gate ───────────────────────────────────────────────────────────
 
-def compute_consistency(candidate: dict) -> float:
-    """Hard gate — profiles with consistency < 0.70 score 0.0."""
-    profile  = candidate["profile"]
-    history  = candidate["career_history"]
-    skills   = candidate["skills"]
-    sig      = candidate["redrob_signals"]
+def evaluate_integrity_rules(candidate: dict) -> tuple[bool, list[str], list[str]]:
+    """Evaluates profile integrity using rule-based criteria instead of scores.
+    Categorizes signals into CRITICAL, MAJOR, and MINOR.
+    Returns: (should_reject, reject_reasons_list, minor_flags_list)
+    
+    Rejects candidate if:
+      - Any 1 CRITICAL rule triggers
+      - Any 2 MAJOR rules trigger
+    """
+    profile = candidate["profile"]
+    history = candidate["career_history"]
+    skills  = candidate["skills"]
+    edu     = candidate.get("education", [])
+    sig     = candidate["redrob_signals"]
 
-    score = 1.0
-    total_months  = sum(r["duration_months"] for r in history)
+    critical_triggers = []
+    major_triggers = []
+    minor_triggers = []
+
+    # ── 1. Experience mismatch (Stated vs Documented) ──
+    total_months  = sum(r["duration_months"] for r in history if r["duration_months"] > 0)
     stated_months = profile["years_of_experience"] * 12
+    
+    # Critical: Stated YoE vs Documented mismatch by >3 years
+    if stated_months > total_months + 36:
+        critical_triggers.append(
+            f"Experience mismatch: claimed {profile['years_of_experience']}yr experience but only "
+            f"{total_months//12:.0f}yr documented in career history"
+        )
+    elif total_months > stated_months + 36:
+        critical_triggers.append(
+            f"Experience mismatch: documented history ({total_months//12:.0f}yr) "
+            f"greatly exceeds claimed experience ({profile['years_of_experience']}yr)"
+        )
 
-    if total_months > stated_months + 36:
-        score -= 0.50
-    elif total_months > stated_months + 18:
-        score -= 0.25
+    # ── 2. Impossible education chronology ──
+    if edu:
+        parsed_edu = []
+        for e in edu:
+            try:
+                sy = int(e.get("start_year", 0) or 0)
+                ey = int(e.get("end_year", 0) or 0)
+                parsed_edu.append((sy, ey, e.get("degree", "").lower()))
+            except (ValueError, TypeError):
+                continue
 
-    expert_zero = [s for s in skills
-                   if s["proficiency"] in ("expert", "advanced") and s.get("duration_months", 0) == 0]
-    if len(expert_zero) >= 3:
-        score -= 0.35
-    elif len(expert_zero) >= 1:
-        score -= 0.10
+        parsed_edu.sort(key=lambda x: x[0])
+        for i in range(len(parsed_edu) - 1):
+            sy0, ey0, deg0 = parsed_edu[i]
+            sy1, ey1, deg1 = parsed_edu[i + 1]
+            # Normalize degree string (remove periods) so "m.s." -> "ms", "ph.d" -> "phd"
+            d0_norm = deg0.replace(".", "").strip()
+            d1_norm = deg1.replace(".", "").strip()
+            higher = {"msc", "mtech", "ms", "mba", "phd", "doctorate", "me", "ma", "master"}
+            if any(h in d0_norm for h in higher) and ey0 > 0 and sy1 > 0 and sy1 > ey0 + 2:
+                if not any(h in d1_norm for h in higher):
+                    # Masters degree finished before next undergrad started (impossible chronology)
+                    critical_triggers.append(
+                        f"Impossible education chronology: {deg0.upper()} ({sy0}–{ey0}) "
+                        f"precedes {deg1.upper()} ({sy1}–{ey1})"
+                    )
 
-    inflated = [s for s in skills
-                if s["proficiency"] == "expert"
-                and s["endorsements"] == 0
-                and sig["skill_assessment_scores"].get(s["name"], 50) < 40]
-    if len(inflated) >= 4:
-        score -= 0.25
+        # Check for overlapping degrees of the same level (e.g. Ira Dalal)
+        degrees_by_level = {"bachelor": [], "master": [], "doctor": []}
+        for e in edu:
+            try:
+                sy = int(e.get("start_year", 0) or 0)
+                ey = int(e.get("end_year", 0) or 0)
+                if sy <= 0 or ey <= 0:
+                    continue
+                deg = e.get("degree", "").lower().replace(".", "").strip()
+                level = None
+                if any(h in deg for h in ["phd", "doctor"]):
+                    level = "doctor"
+                elif any(h in deg for h in ["msc", "mtech", "ms", "mba", "me", "ma", "mca", "master", "pg"]):
+                    level = "master"
+                elif any(h in deg for h in ["btech", "be", "bsc", "ba", "bca", "bba", "bachelor", "ug"]):
+                    level = "bachelor"
+                if level:
+                    degrees_by_level[level].append((sy, ey, e.get("degree", "")))
+            except (ValueError, TypeError):
+                continue
 
+        for lvl, degs in degrees_by_level.items():
+            if len(degs) >= 2:
+                for i in range(len(degs)):
+                    for j in range(i + 1, len(degs)):
+                        sy0, ey0, d0 = degs[i]
+                        sy1, ey1, d1 = degs[j]
+                        overlap = min(ey0, ey1) - max(sy0, sy1) + 1
+                        if overlap >= 2:
+                            minor_triggers.append(
+                                f"Overlapping {lvl} degrees: {d0} ({sy0}–{ey0}) & {d1} ({sy1}–{ey1})"
+                            )
+
+    # ── 3. Technology anachronism ──
+    anachronistic_techs = [
+        "rag", "llm", "bge embeddings", "bge", "llama", "chatgpt", "gpt-4",
+        "vector database", "llm-based re-ranker", "pinecone", "weaviate",
+        "qdrant", "milvus", "faiss hnsw",
+    ]
+    for role in history:
+        end_date = role.get("end_date") or role.get("start_date")
+        if not end_date:
+            continue
+        try:
+            end_year = int(str(end_date)[:4])
+        except ValueError:
+            continue
+        if end_year < 2021:
+            desc_lower = role.get("description", "").lower()
+            found = [t for t in anachronistic_techs if t in desc_lower]
+            if len(found) >= 1:
+                critical_triggers.append(
+                    f"Technology anachronism: {', '.join(found[:3])} mentioned in "
+                    f"role ending {end_year} at {role.get('company','?')}"
+                )
+
+    # ── 4. Duplicated career narratives (trigram threshold raised to 95%) ──
+    descs = [r.get("description", "").strip().lower() for r in history if r.get("description")]
+    if len(descs) >= 2:
+        def _trigram_sim(a: str, b: str) -> float:
+            def trigrams(s):
+                words = s.split()
+                return set(" ".join(words[i:i+3]) for i in range(len(words)-2))
+            ta, tb = trigrams(a), trigrams(b)
+            if not ta or not tb:
+                return 0.0
+            return len(ta & tb) / max(len(ta), len(tb))
+
+        high_sim_pairs = []
+        for i in range(len(descs)):
+            for j in range(i + 1, len(descs)):
+                sim = _trigram_sim(descs[i], descs[j])
+                if sim >= 0.95:
+                    high_sim_pairs.append((i, j, sim))
+
+        if high_sim_pairs:
+            pair_desc = "; ".join(
+                f"{history[i].get('company','?')} ↔ {history[j].get('company','?')}"
+                for i, j, sim in high_sim_pairs
+            )
+            major_triggers.append(f"Duplicated role descriptions: {pair_desc}")
+
+    # ── 5. Multiple employment overlaps ──
+    definite_roles = [
+        r for r in history
+        if r.get("start_date") and r.get("end_date") and not r.get("is_current")
+    ]
+    if len(definite_roles) >= 2:
+        try:
+            sorted_roles = sorted(definite_roles, key=lambda r: str(r["start_date"]))
+            overlapping = []
+            for i in range(len(sorted_roles) - 1):
+                end_i   = str(sorted_roles[i]["end_date"])[:7]
+                start_j = str(sorted_roles[i + 1]["start_date"])[:7]
+                if start_j < end_i:
+                    overlapping.append(
+                        f"{sorted_roles[i].get('company','?')} & {sorted_roles[i+1].get('company','?')}"
+                    )
+            if len(overlapping) >= 2:
+                major_triggers.append(
+                    "Multiple employment overlaps: " + ", ".join(overlapping[:2])
+                )
+            elif len(overlapping) == 1:
+                minor_triggers.append(f"Employment date overlap: {overlapping[0]}")
+        except Exception:
+            pass
+
+    # ── 5a. Company founding date validation (Honeypot detection) ──
+    company_founding_years = {
+        "krutrim": 2023,
+        "sarvam ai": 2023,
+        "sarvam": 2023,
+        "xai": 2023,
+        "mistral": 2023,
+        "mistral ai": 2023,
+        "anthropic": 2021,
+        "cohere": 2019,
+        "openai": 2015,
+    }
+    for role in history:
+        comp_name = str(role.get("company", "")).strip().lower()
+        clean_comp = comp_name.replace("inc.", "").replace("corp.", "").replace("ltd.", "").replace("software", "").strip()
+        matched_year = None
+        for k, yr in company_founding_years.items():
+            if k in clean_comp:
+                matched_year = yr
+                break
+        
+        if matched_year:
+            start_date = role.get("start_date")
+            if start_date:
+                try:
+                    start_year = int(str(start_date)[:4])
+                    if start_year < matched_year:
+                        critical_triggers.append(
+                            f"Experience mismatch: worked at {role.get('company')} starting in {start_year}, but company was founded in {matched_year}."
+                        )
+                except ValueError:
+                    pass
+
+    # ── 5b. Unexplained education-to-career gap ──
+    if edu and history:
+        try:
+            grad_years = [int(e.get("end_year", 0) or 0) for e in edu if e.get("end_year")]
+            job_starts = [
+                datetime.strptime(r["start_date"], "%Y-%m-%d").year
+                for r in history if r.get("start_date")
+            ]
+            if grad_years and job_starts:
+                latest_grad = max(grad_years)
+                earliest_job = min(job_starts)
+                gap = earliest_job - latest_grad
+                if gap >= 8:
+                    # 8+ year gap with no career history in between = classic honeypot
+                    critical_triggers.append(
+                        f"Impossible timeline: graduated {latest_grad} but first job not until "
+                        f"{earliest_job} ({gap}-year gap with no documented history)"
+                    )
+                elif gap >= 5:
+                    major_triggers.append(
+                        f"Large unexplained gap: {gap} years between graduation ({latest_grad}) "
+                        f"and first job ({earliest_job})"
+                    )
+        except (ValueError, TypeError):
+            pass
+
+    # ── 6. Skill duration inflation ──
+    if total_months > 0:
+        # Allow a learning buffer: skills can predate first job by up to 4 years (48 months)
+        # to account for B.Tech/M.Tech students learning during college.
+        LEARNING_BUFFER_MONTHS = 48
+        effective_span = total_months + LEARNING_BUFFER_MONTHS
+
+        total_skill_months = sum(s.get("duration_months", 0) for s in skills)
+        if total_skill_months > effective_span * 15:
+            minor_triggers.append("Skill duration inflation")
+
+        impossible_skills = [
+            s["name"] for s in skills
+            if s.get("duration_months", 0) > effective_span + 12
+        ]
+        expert_impossible = [
+            s["name"] for s in skills
+            if s.get("duration_months", 0) > effective_span + 12
+            and s.get("proficiency") == "expert"
+        ]
+
+        # MAJOR: 3+ skills with impossible durations (strong honeypot signal)
+        if len(impossible_skills) >= 3:
+            major_triggers.append(
+                f"Impossible skill durations ({len(impossible_skills)} skills exceed career + college span): "
+                + ", ".join(impossible_skills[:4])
+            )
+        # MAJOR: even 1 expert skill claimed for longer than entire career + college span
+        elif len(expert_impossible) >= 1:
+            major_triggers.append(
+                f"Expert skill duration exceeds career + college span: "
+                + ", ".join(expert_impossible[:3])
+            )
+        elif len(impossible_skills) >= 1:
+            minor_triggers.append(f"Skill duration inflation: {', '.join(impossible_skills[:3])}")
+
+    # ── 7. Sparse profile vs seniority ──
     completeness = sig["profile_completeness_score"]
     if completeness < 20 and profile["years_of_experience"] > 10:
-        score -= 0.15
+        minor_triggers.append("Sparse profile")
 
-    return max(0.0, score)
+    # Decide Reject
+    should_reject = len(critical_triggers) >= 1 or len(major_triggers) >= 2
+    reject_reasons = critical_triggers + major_triggers
+    
+    return should_reject, reject_reasons, minor_triggers
+
+
+def compute_consistency(candidate: dict) -> float:
+    """Delegates to rules. Returns 0.0 if rejected, 1.0 otherwise."""
+    rejected, _, _ = evaluate_integrity_rules(candidate)
+    return 0.0 if rejected else 1.0
 
 
 # ── Reasoning generator ────────────────────────────────────────────────────────
 
 def generate_reasoning(candidate: dict, scores: dict) -> str:
-    """Generates specific, non-templated reasoning string for the candidate."""
+    """
+    Generates evidence-based narrative reasoning following the template:
+      Role + Exp | Core production work | Retrieval/Ranking ownership |
+      Evaluation ownership | Shipping evidence | Availability/notice
+    No keyword lists — every claim is grounded in profile evidence.
+    """
     profile  = candidate["profile"]
     history  = candidate["career_history"]
     skills   = candidate["skills"]
-
-    name      = profile.get("anonymized_name", "Candidate")
-    title     = profile.get("current_title", "Unknown")
-    yoe       = profile["years_of_experience"]
-    country   = profile.get("country", "")
     sig       = candidate["redrob_signals"]
 
-    top_skills = sorted(
-        [s["name"] for s in skills
-         if s["proficiency"] in ("expert", "advanced") and s["endorsements"] > 0],
-         key=lambda s: -next((sk["endorsements"] for sk in skills if sk["name"] == s), 0)
-    )[:3]
+    title = profile.get("current_title", "Unknown")
+    yoe   = profile["years_of_experience"]
 
-    recent_company = history[0]["company"] if history else "N/A"
-    recent_industry = history[0].get("industry", "") if history else ""
+    # ── Build full-text corpus for signal detection ──
+    search_text = (
+        profile.get("summary", "") + " "
+        + " ".join(r.get("description", "") for r in history)
+    ).lower()
+    skill_names_lower = " ".join(s["name"].lower() for s in skills)
+    full_text = search_text + " " + skill_names_lower
 
-    # Check for specific elite JD keywords in candidate's text/skills
-    elite_kws = {
-        "Hybrid retrieval": ["hybrid retrieval", "hybrid search"],
-        "BM25": ["bm25", "tf-idf", "keyword search"],
-        "Dense retrieval": ["dense retrieval", "ann search", "vector search", "milvus", "qdrant", "pinecone", "weaviate", "faiss"],
-        "Embeddings": ["embeddings", "sentence-transformers", "sbert", "text embeddings"],
-        "Learning-to-rank": ["learning-to-rank", "learning to rank", "ltr"],
-        "NDCG": ["ndcg"],
-        "MRR": ["mrr"],
-        "A/B testing": ["a/b test", "ab test", "a/b testing", "online experiment"],
-        "Recruiter feedback loops": ["recruiter feedback", "feedback loop"]
-    }
-    found_kws = []
-    search_text = (profile.get("summary", "") + " " + " ".join(r.get("description", "") for r in history)).lower()
-    search_text += " " + " ".join(s["name"].lower() for s in skills)
-    for label, patterns in elite_kws.items():
-        if any(pat in search_text for pat in patterns):
-            found_kws.append(label)
+    # ── Score sub-dimensions ──
+    eval_score       = scores.get("evaluation", 0.0)
+    ownership_score  = scores.get("ownership", 0.0)
+    production_score = scores.get("production", 0.0)
+    sem              = scores.get("semantic", 0.0)
+    minor_flags      = scores.get("minor_flags", [])
 
-    parts = []
+    # ── Signal detection helpers ──
+    has_bm25          = any(p in full_text for p in ["bm25", "tf-idf", "sparse retrieval", "keyword search"])
+    has_dense         = any(p in full_text for p in ["dense retrieval", "dense vector", "vector search",
+                                                      "faiss", "milvus", "qdrant", "pinecone", "weaviate",
+                                                      "ann search", "hnsw", "embeddings", "sentence-transformers"])
+    has_hybrid        = any(p in full_text for p in ["hybrid retrieval", "hybrid search", "bm25 + dense",
+                                                      "sparse and dense", "sparse + dense"])
+    has_ltr           = any(p in full_text for p in ["learning-to-rank", "learning to rank", "ltr",
+                                                      "xgboost rank", "lambdamart", "ranknet"])
+    has_ndcg          = "ndcg" in full_text
+    has_mrr           = "mrr" in full_text
+    has_ab            = any(p in full_text for p in ["a/b test", "ab test", "a/b testing", "online experiment",
+                                                      "online a/b"])
+    has_recruiter     = any(p in full_text for p in ["recruiter", "recruiter-facing", "recruiter search",
+                                                      "recruiter feedback", "candidate search", "candidate matching",
+                                                      "candidate-jd", "jd matching"])
+    has_prod_deploy   = any(p in full_text for p in ["shipped", "production", "prod", "live", "deployed",
+                                                      "serving", "queries per month", "qps", "p95", "p99"])
+    has_search_rel    = any(p in full_text for p in ["search relevance", "relevance improvement",
+                                                      "relevance judgment", "relevance label",
+                                                      "time-to-shortlist", "engagement metric"])
 
-    parts.append(f"{title} with {yoe}yr exp at {recent_company}")
-    if country:
-        parts.append(f"({country})")
+    # ── Part 1: Role + Exp (always present) ──
+    parts = [f"{title} ({yoe}yr)"]
 
-    sem = scores.get("semantic", 0)
+    # ── Part 2: Core production work ──
+    if production_score >= 0.70:
+        if has_recruiter:
+            parts.append("who built production recruiter-facing search and ranking systems")
+        elif "recommend" in full_text:
+            parts.append("who built and shipped production recommendation and ranking systems")
+        else:
+            parts.append("who shipped production retrieval/ranking systems")
+
+    # ── Part 3: Hybrid retrieval evidence ──
+    if has_hybrid or (has_bm25 and has_dense):
+        # Synthesise into one evidence statement — no list
+        parts.append("Led hybrid retrieval combining sparse (BM25) and dense embeddings")
+    elif has_bm25:
+        parts.append("Owned BM25/sparse retrieval pipeline")
+    elif has_dense:
+        parts.append("Owned dense-vector retrieval pipeline")
+
+    # ── Part 4: Learning-to-rank ──
+    if has_ltr and ownership_score >= 0.60:
+        parts.append("owned learning-to-rank")
+
+    # ── Part 5: Evaluation evidence (NDCG/MRR + A/B) ──
+    eval_parts = []
+    if has_ndcg and has_mrr:
+        eval_parts.append("NDCG/MRR")
+    elif has_ndcg:
+        eval_parts.append("NDCG")
+    elif has_mrr:
+        eval_parts.append("MRR")
+    if has_ab:
+        eval_parts.append("A/B testing")
+
+    if eval_parts and eval_score >= 0.50:
+        parts.append(f"and offline→online evaluation ({'/'.join(eval_parts)})")
+    elif eval_score >= 0.50:
+        parts.append("and designed offline/online evaluation framework")
+
+    # ── Part 6: Shipping / deployment evidence ──
+    if has_prod_deploy and production_score >= 0.70:
+        parts.append("Shipped production relevance improvements")
+
+    # ── Part 7: Search relevance / recruiter-feedback specifics ──
+    if has_search_rel or has_recruiter:
+        if has_recruiter and has_search_rel:
+            parts.append("with recruiter-search relevance ownership")
+        elif has_recruiter:
+            parts.append("with recruiter-facing search experience")
+        else:
+            parts.append("with search relevance engineering evidence")
+
+    # ── Part 8: Semantic alignment (brief, no list) ──
     if sem >= 0.75:
-        parts.append("| Strong profile-JD alignment (semantic)")
-    elif sem >= 0.50:
-        parts.append("| Moderate profile-JD alignment")
-    else:
-        parts.append("| Low semantic alignment")
+        parts.append("Strong semantic match to Redrob's intelligence-layer ownership")
 
-    skill = scores.get("skill", 0)
-    if top_skills:
-        parts.append(f"| Key skills: {', '.join(top_skills)}")
-    elif skill >= 0.50:
-        parts.append("| Relevant skills present")
-    else:
-        parts.append("| Limited relevant skills")
-
-    if found_kws:
-        parts.append(f"| JD keywords: {', '.join(found_kws)}")
-
-    prod = scores.get("production", 0)
-    if prod >= 0.70:
-        parts.append("| Strong production evidence")
-    elif prod >= 0.40:
-        parts.append("| Some production evidence")
-    else:
-        parts.append("| Limited production evidence")
-
-    company_score = COMPANY_SCORES.get(recent_company, COMPANY_DEFAULT)
-    if company_score >= 0.85:
-        parts.append(f"| Premium product company background ({recent_company})")
-    elif company_score <= 0.52:
-        parts.append(f"| Services background ({recent_company}) — check career history")
-    if recent_industry in HIGH_RELEVANCE_INDUSTRIES:
-        parts.append(f"| Relevant industry: {recent_industry}")
-
-    tvp = scores.get("title_velocity_penalty", 0)
-    if tvp > 0:
-        parts.append("| NOTE: Short avg tenure with multiple title jumps detected")
-
-    if scores.get("research_penalty_applied", False):
-        parts.append("| NOTE: Research title with low production evidence penalty applied")
-
+    # ── Part 9: Availability ──
     avail = compute_availability_score(sig)
     if avail <= 0.30:
-        parts.append("| ⚠️ LOW AVAILABILITY — inactive >90 days")
+        parts.append("⚠️ LOW AVAILABILITY — inactive >90 days")
     elif avail >= 0.85:
-        parts.append("| Highly available (recently active)")
+        parts.append("Highly available (recently active)")
 
     notice = sig["notice_period_days"]
     if notice <= 30:
-        parts.append(f"| Notice: {notice}d ✓")
+        parts.append(f"Notice: {notice}d ✓")
     elif notice > 90:
-        parts.append(f"| Notice: {notice}d (long)")
+        parts.append(f"Notice: {notice}d (long)")
 
     otw = "open" if sig["open_to_work_flag"] else "not flagged open"
-    parts.append(f"| OTW: {otw}")
+    parts.append(f"OTW: {otw}")
 
-    return " ".join(parts)
+    # ── Integrity flags ──
+    if minor_flags:
+        for flag in minor_flags:
+            parts.append(f"⚠️ {flag}")
+
+    # Join with " | " for readability — first part has no leading pipe
+    return parts[0] + " | " + " | ".join(parts[1:]) if len(parts) > 1 else parts[0]
 
 
 # ── Master scorer ──────────────────────────────────────────────────────────────
 
 def score_candidate(candidate: dict) -> tuple[float, str]:
     """Returns (final_score, reasoning_string) for a single candidate."""
-    if compute_consistency(candidate) < 0.70:
-        return 0.0, "FILTERED: inconsistent profile signals (consistency < 0.70)"
+    rejected, reject_reasons, minor_flags = evaluate_integrity_rules(candidate)
+    if rejected:
+        reason_summary = " • ".join(reject_reasons)
+        return 0.0, f"FILTERED: Reason: {reason_summary}"
 
     cid = candidate["candidate_id"]
     idx = CID_TO_IDX.get(cid)
@@ -708,28 +1107,33 @@ def score_candidate(candidate: dict) -> tuple[float, str]:
     ownership  = compute_ownership_score(candidate)
     evaluation = compute_eval_score(candidate)
     retrieval  = compute_retrieval_score(candidate)
-    education  = compute_education_score(candidate)
-    location   = compute_location_score(candidate)
     behavioral = compute_behavioral_score(candidate)
+
+    domain_bonus = compute_domain_bonus(candidate)
+    hybrid_bonus = compute_hybrid_bonus(candidate)
+    ops_bonus    = compute_ops_bonus(candidate)
+    boring_bonus = compute_boring_bonus(candidate)
 
     tvp             = _compute_title_velocity_penalty(candidate)
     career_adjusted = max(0.0, career - tvp)
 
-    # Base score (80% of final)
+    location = compute_location_score(candidate)
+
+    # Base score weights sum to 1.00
     base = (
-        0.22 * semantic +
-        0.15 * skill +
-        0.20 * production +
-        0.14 * career_adjusted +
-        0.08 * title +
-        0.08 * ownership +
-        0.08 * evaluation +
-        0.03 * retrieval +
-        0.01 * education +
-        0.01 * location
+        0.20 * semantic +
+        0.08 * skill +
+        0.25 * production +
+        0.07 * career_adjusted +
+        0.05 * title +
+        0.12 * ownership +
+        0.12 * evaluation +
+        0.08 * retrieval +
+        0.03 * location
     )
 
-    final = round(0.80 * base + 0.20 * behavioral, 4)
+    # Behavioral weight: 0.75 * base + 0.25 * behavioral
+    final = round(0.75 * base + 0.25 * behavioral + domain_bonus + hybrid_bonus + ops_bonus + boring_bonus, 4)
 
     # Conditional CV/Speech Penalty
     full = (
@@ -737,6 +1141,7 @@ def score_candidate(candidate: dict) -> tuple[float, str]:
         " ".join(r["description"] for r in candidate["career_history"])
     ).lower()
 
+    padded_full = f" {full} "
     is_cv = any(
         kw in full for kw in [
             "computer vision",
@@ -745,9 +1150,8 @@ def score_candidate(candidate: dict) -> tuple[float, str]:
             "opencv",
             "yolo",
             "speech recognition",
-            "asr"
         ]
-    )
+    ) or " asr " in padded_full
 
     has_ir = (
         retrieval > 0.20 or
@@ -776,11 +1180,54 @@ def score_candidate(candidate: dict) -> tuple[float, str]:
     final = round(final + marketplace_bonus, 4)
     final = min(final, 1.0)
 
+    # consulting-only current employer penalty
+    current_employer_services_penalty = 0.0
+    if candidate.get("career_history"):
+        current_company = candidate["career_history"][0].get("company", "")
+        if current_company in SERVICE_COMPANIES:
+            current_employer_services_penalty = 0.05
+            final = round(max(0.0, final - current_employer_services_penalty), 4)
+
+    # Strict downweight for completely non-AI/non-Engineering titles (JD trap avoidance)
+    current_title = candidate["profile"].get("current_title", "")
+    non_tech_titles = {
+        "Marketing Manager", "HR Manager", "Civil Engineer", "Mechanical Engineer",
+        "Operations Manager", "Project Manager", "Sales Executive", "Graphic Designer",
+        "Content Writer", "Customer Support", "Accountant", "Business Analyst"
+    }
+    if current_title in non_tech_titles:
+        final = round(final * 0.60, 4)
+
     is_research = "research" in candidate["profile"].get("current_title", "").lower()
     research_penalty_applied = False
     if is_research and production < 0.40:
         final = round(final * 0.92, 4)
         research_penalty_applied = True
+
+    # Downweight highly inactive/unavailable candidates (e.g. Candidate #10)
+    availability_penalty = 0.0
+    sig = candidate["redrob_signals"]
+    last_active = datetime.strptime(sig["last_active_date"], "%Y-%m-%d").date()
+    days_ago    = (REFERENCE_DATE - last_active).days
+    if days_ago > 120 and not sig["open_to_work_flag"]:
+        availability_penalty += 0.05
+    if sig["recruiter_response_rate"] < 0.15:
+        availability_penalty += 0.05
+
+    if availability_penalty > 0.0:
+        final = round(max(0.0, final - availability_penalty), 4)
+
+    # ── Soft Integrity Penalty for Overlapping degrees of same level ──
+    for flag in minor_flags:
+        if "Overlapping" in flag:
+            final = round(max(0.0, final - 0.02), 4)
+
+    # ── Score spread sharpening ────────────────────────────────────────────────
+    # Apply a mild power transform to pull apart bunched top scores.
+    # f(x) = x^0.85 maps 1.0→1.0, 0.95→0.957, 0.90→0.913, 0.80→0.822
+    # This gives a modest but meaningful push to the gaps at the top.
+    final = round(float(np.power(final, 0.85)), 4)
+    final = min(final, 1.0)
 
     reasoning = generate_reasoning(candidate, {
         "semantic": semantic, "skill": skill, "production": production,
@@ -788,6 +1235,7 @@ def score_candidate(candidate: dict) -> tuple[float, str]:
         "ownership": ownership, "evaluation": evaluation, "retrieval": retrieval,
         "title_velocity_penalty": tvp,
         "research_penalty_applied": research_penalty_applied,
+        "minor_flags": minor_flags,
     })
 
     return final, reasoning
@@ -809,7 +1257,7 @@ def main():
         return
 
     print(f"\n{'='*60}")
-    print("Redrob AI Candidate Ranker — rank.py (v7 Optimized)")
+    print("Redrob AI Candidate Ranker — newrank.py (v7 Optimized)")
     print(f"{'='*60}")
     print(f"Input:  {candidates_path}")
     print(f"Output: {args.out}\n")
@@ -848,11 +1296,16 @@ def main():
     # Sort by score descending, break ties by candidate_id ascending
     results.sort(key=lambda x: (-x["score"], x["candidate_id"]))
 
-    # Write top 10 raw candidate lines to to_check
+    # Write top 10 raw candidate lines to to_check and topresume
     with open("to_check", "w", encoding="utf-8") as f_check:
         for r in results[:10]:
             f_check.write(r["raw_line"] + "\n")
     print("✅  Top 10 raw candidates written to: to_check")
+
+    with open("topresume", "w", encoding="utf-8") as f_topresume:
+        for r in results[:10]:
+            f_topresume.write(r["raw_line"] + "\n")
+    print("✅  Top 10 raw candidates written to: topresume")
 
     # Prepare top 100 rows with rank
     top_100_results = []

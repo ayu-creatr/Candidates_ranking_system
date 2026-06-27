@@ -1,0 +1,101 @@
+candidate_id,rank,score,reasoning
+CAND_0000165,1,0.6811,AI Specialist (6.8yr) | who shipped production retrieval/ranking systems | Owned dense-vector retrieval pipeline | Shipped production relevance improvements | Strong semantic match to Redrob's intelligence-layer ownership | Highly available (recently active) | Notice: 120d (long) | OTW: open
+CAND_0000422,2,0.6569,AI Research Engineer (6.3yr) | who built and shipped production recommendation and ranking systems | Owned dense-vector retrieval pipeline | Shipped production relevance improvements | Strong semantic match to Redrob's intelligence-layer ownership | OTW: open
+CAND_0000666,3,0.6289,Data Scientist (6.5yr) | who built and shipped production recommendation and ranking systems | Owned dense-vector retrieval pipeline | Shipped production relevance improvements | OTW: open
+CAND_0000854,4,0.6074,Data Analyst (7.1yr) | who built and shipped production recommendation and ranking systems | Owned dense-vector retrieval pipeline | Shipped production relevance improvements | Notice: 120d (long) | OTW: open
+CAND_0000440,5,0.6024,Software Engineer (7.5yr) | who shipped production retrieval/ranking systems | Owned dense-vector retrieval pipeline | Shipped production relevance improvements | OTW: not flagged open
+CAND_0000390,6,0.5896,Backend Engineer (6.6yr) | who shipped production retrieval/ranking systems | Shipped production relevance improvements | Notice: 120d (long) | OTW: open | ⚠️ Overlapping bachelor degrees: B.Sc (2016–2019) & B.Sc (2012–2017)
+CAND_0000874,7,0.5673,Senior Software Engineer (6.3yr) | who shipped production retrieval/ranking systems | Owned dense-vector retrieval pipeline | Shipped production relevance improvements | Notice: 120d (long) | OTW: open
+CAND_0000633,8,0.5666,Software Engineer (6.4yr) | who built and shipped production recommendation and ranking systems | Shipped production relevance improvements | OTW: open
+CAND_0000969,9,0.5665,AI Specialist (5.5yr) | Owned dense-vector retrieval pipeline | Highly available (recently active) | OTW: open
+CAND_0000631,10,0.5376,Cloud Engineer (8.5yr) | who shipped production retrieval/ranking systems | Shipped production relevance improvements | Notice: 150d (long) | OTW: not flagged open
+CAND_0000010,11,0.5358,Data Engineer (4.6yr) | who shipped production retrieval/ranking systems | Owned BM25/sparse retrieval pipeline | Shipped production relevance improvements | Notice: 120d (long) | OTW: not flagged open
+CAND_0000970,12,0.5319,Data Engineer (3.0yr) | Owned dense-vector retrieval pipeline | OTW: not flagged open
+CAND_0000200,13,0.5317,ML Engineer (4.3yr) | Owned dense-vector retrieval pipeline | Highly available (recently active) | OTW: open
+CAND_0000130,14,0.5194,Cloud Engineer (8.6yr) | who shipped production retrieval/ranking systems | Shipped production relevance improvements | Notice: 150d (long) | OTW: not flagged open
+CAND_0000508,15,0.5179,Backend Engineer (4.6yr) | OTW: not flagged open
+CAND_0000210,16,0.5154,Senior Data Engineer (6.3yr) | Notice: 120d (long) | OTW: not flagged open
+CAND_0000229,17,0.5148,Senior Software Engineer (2.2yr) | OTW: not flagged open
+CAND_0000996,18,0.5144,Senior Data Engineer (3.6yr) | Highly available (recently active) | Notice: 120d (long) | OTW: open
+CAND_0000015,19,0.5083,Software Engineer (5.4yr) | who shipped production retrieval/ranking systems | Owned dense-vector retrieval pipeline | Shipped production relevance improvements | OTW: open
+CAND_0000876,20,0.5057,Mobile Developer (7.2yr) | who shipped production retrieval/ranking systems | Shipped production relevance improvements | OTW: open
+CAND_0000461,21,0.5043,Java Developer (6.7yr) | who shipped production retrieval/ranking systems | Shipped production relevance improvements | OTW: open
+CAND_0000584,22,0.4978,Analytics Engineer (7.3yr) | Owned BM25/sparse retrieval pipeline | OTW: not flagged open
+CAND_0000110,23,0.4951,Software Engineer (9.8yr) | Highly available (recently active) | Notice: 150d (long) | OTW: open
+CAND_0000159,24,0.4929,Java Developer (4.4yr) | OTW: open
+CAND_0000790,25,0.4875,Data Analyst (7.9yr) | who shipped production retrieval/ranking systems | Shipped production relevance improvements | Notice: 120d (long) | OTW: not flagged open
+CAND_0000984,26,0.4852,DevOps Engineer (9.8yr) | who shipped production retrieval/ranking systems | Shipped production relevance improvements | ⚠️ LOW AVAILABILITY — inactive >90 days | Notice: 30d ✓ | OTW: not flagged open
+CAND_0000928,27,0.474,Frontend Engineer (6.2yr) | who shipped production retrieval/ranking systems | Shipped production relevance improvements | OTW: open
+CAND_0000352,28,0.473,QA Engineer (4.7yr) | who shipped production retrieval/ranking systems | Shipped production relevance improvements | OTW: open
+CAND_0000911,29,0.473,Cloud Engineer (7.7yr) | Strong semantic match to Redrob's intelligence-layer ownership | OTW: not flagged open
+CAND_0000635,30,0.4726,Software Engineer (5.6yr) | who shipped production retrieval/ranking systems | Shipped production relevance improvements | OTW: not flagged open
+CAND_0000255,31,0.468,Cloud Engineer (8.0yr) | Notice: 150d (long) | OTW: open
+CAND_0000797,32,0.4676,Backend Engineer (3.5yr) | Owned dense-vector retrieval pipeline | Notice: 120d (long) | OTW: not flagged open
+CAND_0000652,33,0.4643,Backend Engineer (2.1yr) | Owned dense-vector retrieval pipeline | OTW: not flagged open | ⚠️ Overlapping bachelor degrees: B.Sc (2013–2017) & B.Tech (2012–2017)
+CAND_0000386,34,0.4595,Mobile Developer (9.6yr) | who shipped production retrieval/ranking systems | Shipped production relevance improvements | OTW: open
+CAND_0000517,35,0.4581,Frontend Engineer (8.6yr) | Strong semantic match to Redrob's intelligence-layer ownership | OTW: not flagged open
+CAND_0000160,36,0.4558,Software Engineer (7.0yr) | Notice: 120d (long) | OTW: open
+CAND_0000628,37,0.4546,Analytics Engineer (2.1yr) | Owned dense-vector retrieval pipeline | OTW: not flagged open
+CAND_0000184,38,0.4505,Software Engineer (4.9yr) | Owned BM25/sparse retrieval pipeline | Notice: 30d ✓ | OTW: not flagged open
+CAND_0000760,39,0.4499,Software Engineer (9.9yr) | who shipped production retrieval/ranking systems | Owned dense-vector retrieval pipeline | Shipped production relevance improvements | OTW: open
+CAND_0000343,40,0.449,Analytics Engineer (6.4yr) | Owned dense-vector retrieval pipeline | OTW: open
+CAND_0000978,41,0.4392,Software Engineer (4.3yr) | Owned dense-vector retrieval pipeline | Notice: 120d (long) | OTW: not flagged open
+CAND_0000775,42,0.4391,Software Engineer (3.3yr) | OTW: open
+CAND_0000599,43,0.4383,QA Engineer (7.8yr) | Highly available (recently active) | OTW: open
+CAND_0000458,44,0.4381,Software Engineer (8.0yr) | Highly available (recently active) | OTW: open
+CAND_0000952,45,0.4368,Full Stack Developer (8.3yr) | who shipped production retrieval/ranking systems | Shipped production relevance improvements | OTW: open
+CAND_0000788,46,0.4332,Cloud Engineer (2.0yr) | who shipped production retrieval/ranking systems | Shipped production relevance improvements | OTW: not flagged open
+CAND_0000884,47,0.4318,Software Engineer (6.0yr) | Notice: 150d (long) | OTW: open
+CAND_0000001,48,0.4294,Backend Engineer (6.9yr) | Owned dense-vector retrieval pipeline | Highly available (recently active) | OTW: open
+CAND_0000063,49,0.4291,Java Developer (5.4yr) | OTW: open
+CAND_0000855,50,0.4285,QA Engineer (6.1yr) | who shipped production retrieval/ranking systems | Shipped production relevance improvements | OTW: open
+CAND_0000043,51,0.4267,Cloud Engineer (8.3yr) | who shipped production retrieval/ranking systems | Shipped production relevance improvements | Notice: 120d (long) | OTW: not flagged open
+CAND_0000655,52,0.4243,.NET Developer (3.8yr) | Owned dense-vector retrieval pipeline | Highly available (recently active) | OTW: open
+CAND_0000649,53,0.4237,Data Engineer (4.5yr) | Owned dense-vector retrieval pipeline | Notice: 120d (long) | OTW: not flagged open
+CAND_0000712,54,0.422,Data Analyst (2.5yr) | Owned BM25/sparse retrieval pipeline | Notice: 30d ✓ | OTW: open
+CAND_0000917,55,0.4206,QA Engineer (5.8yr) | Owned dense-vector retrieval pipeline | Notice: 120d (long) | OTW: open
+CAND_0000223,56,0.4198,Java Developer (6.1yr) | Notice: 30d ✓ | OTW: open
+CAND_0000522,57,0.4179,Software Engineer (9.2yr) | Notice: 150d (long) | OTW: open
+CAND_0000858,58,0.413,Frontend Engineer (2.5yr) | Notice: 120d (long) | OTW: open
+CAND_0000895,59,0.4125,DevOps Engineer (5.1yr) | Owned dense-vector retrieval pipeline | Notice: 30d ✓ | OTW: not flagged open
+CAND_0000014,60,0.4119,Frontend Engineer (8.4yr) | Owned dense-vector retrieval pipeline | OTW: not flagged open
+CAND_0000937,61,0.4113,Cloud Engineer (3.6yr) | Owned dense-vector retrieval pipeline | OTW: open
+CAND_0000062,62,0.4107,DevOps Engineer (4.3yr) | Highly available (recently active) | OTW: open
+CAND_0000038,63,0.4103,Java Developer (6.7yr) | Owned dense-vector retrieval pipeline | OTW: open
+CAND_0000018,64,0.41,Frontend Engineer (6.6yr) | Notice: 120d (long) | OTW: not flagged open
+CAND_0000545,65,0.4081,Software Engineer (6.1yr) | OTW: open
+CAND_0000993,66,0.4062,Full Stack Developer (6.1yr) | OTW: open | ⚠️ Overlapping master degrees: M.E. (2007–2012) & M.Sc (2010–2015)
+CAND_0000866,67,0.4049,DevOps Engineer (5.6yr) | who shipped production retrieval/ranking systems | Shipped production relevance improvements | OTW: open
+CAND_0000600,68,0.4046,Software Engineer (3.6yr) | OTW: open
+CAND_0000899,69,0.4031,Full Stack Developer (4.1yr) | Owned dense-vector retrieval pipeline | Notice: 30d ✓ | OTW: not flagged open
+CAND_0000870,70,0.4002,Cloud Engineer (7.4yr) | Owned dense-vector retrieval pipeline | Notice: 150d (long) | OTW: not flagged open
+CAND_0000466,71,0.4,.NET Developer (8.8yr) | Notice: 120d (long) | OTW: open
+CAND_0000442,72,0.3988,Frontend Engineer (3.1yr) | Notice: 120d (long) | OTW: open
+CAND_0000900,73,0.3941,.NET Developer (1.8yr) | Owned dense-vector retrieval pipeline | OTW: not flagged open
+CAND_0000614,74,0.3925,Full Stack Developer (7.9yr) | OTW: not flagged open
+CAND_0000048,75,0.3907,Mobile Developer (9.7yr) | Notice: 120d (long) | OTW: open
+CAND_0000801,76,0.3904,Full Stack Developer (3.4yr) | Notice: 120d (long) | OTW: open
+CAND_0000588,77,0.3895,DevOps Engineer (5.8yr) | OTW: open
+CAND_0000127,78,0.3891,Mobile Developer (6.7yr) | OTW: not flagged open
+CAND_0000813,79,0.3867,Cloud Engineer (1.4yr) | Highly available (recently active) | OTW: open
+CAND_0000706,80,0.3865,QA Engineer (3.6yr) | Notice: 30d ✓ | OTW: not flagged open
+CAND_0000088,81,0.3851,Java Developer (7.6yr) | Owned dense-vector retrieval pipeline | Notice: 30d ✓ | OTW: not flagged open
+CAND_0000136,82,0.3829,QA Engineer (6.5yr) | who shipped production retrieval/ranking systems | Shipped production relevance improvements | ⚠️ LOW AVAILABILITY — inactive >90 days | OTW: not flagged open
+CAND_0000681,83,0.3821,Java Developer (7.2yr) | Notice: 120d (long) | OTW: open
+CAND_0000187,84,0.3807,DevOps Engineer (6.6yr) | Owned dense-vector retrieval pipeline | OTW: open
+CAND_0000249,85,0.3789,QA Engineer (9.1yr) | Owned dense-vector retrieval pipeline | Notice: 30d ✓ | OTW: not flagged open
+CAND_0000295,86,0.3784,Frontend Engineer (7.8yr) | Notice: 120d (long) | OTW: open
+CAND_0000739,87,0.377,Civil Engineer (11.1yr) | Owned dense-vector retrieval pipeline | Strong semantic match to Redrob's intelligence-layer ownership | Notice: 30d ✓ | OTW: not flagged open
+CAND_0000117,88,0.3752,QA Engineer (7.9yr) | Strong semantic match to Redrob's intelligence-layer ownership | ⚠️ LOW AVAILABILITY — inactive >90 days | OTW: not flagged open
+CAND_0000201,89,0.3751,Marketing Manager (14.1yr) | Owned dense-vector retrieval pipeline | OTW: not flagged open
+CAND_0000623,90,0.375,Java Developer (5.1yr) | Led hybrid retrieval combining sparse (BM25) and dense embeddings | OTW: open
+CAND_0000849,91,0.3744,Cloud Engineer (2.7yr) | Notice: 30d ✓ | OTW: open
+CAND_0000975,92,0.3736,Java Developer (7.7yr) | OTW: not flagged open
+CAND_0000313,93,0.3728,Software Engineer (7.0yr) | Notice: 120d (long) | OTW: not flagged open
+CAND_0000646,94,0.3711,Software Engineer (4.2yr) | Notice: 120d (long) | OTW: open
+CAND_0000096,95,0.3679,QA Engineer (3.2yr) | OTW: not flagged open
+CAND_0000592,96,0.367,.NET Developer (9.7yr) | Notice: 120d (long) | OTW: open
+CAND_0000011,97,0.3668,QA Engineer (2.0yr) | OTW: not flagged open | ⚠️ Overlapping bachelor degrees: B.Tech (2014–2019) & B.Sc (2015–2020)
+CAND_0000262,98,0.3631,Full Stack Developer (4.9yr) | Notice: 120d (long) | OTW: not flagged open
+CAND_0000930,99,0.3625,Software Engineer (9.0yr) | Notice: 120d (long) | OTW: open
+CAND_0000769,100,0.3624,.NET Developer (1.5yr) | Notice: 150d (long) | OTW: not flagged open

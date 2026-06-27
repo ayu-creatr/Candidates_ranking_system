@@ -1,0 +1,11 @@
+{
+  "semantic_p1": 0.19240253785066305,
+  "semantic_p99": 0.454812748119235,
+  "skill_denom": 1.1684417724932217,
+  "production_p99": 0.355,
+  "production_rescale": true,
+  "reference_date": "2026-06-17",
+  "model_name": "all-MiniLM-L6-v2",
+  "n_candidates": 1000,
+  "n_unique_skills": 119
+}
