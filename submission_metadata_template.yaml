@@ -7,30 +7,27 @@
 # ============================================================================
 # Team identity
 # ============================================================================
-team_name: "your-team-name-here"  # Used in leaderboard and announcements
+team_name: "InternBharat"  # Used in leaderboard and announcements
 
 primary_contact:
-  name: "Full Name"
-  email: "primary@example.com"   # Used for all organizer communication
-  phone: "+91-XXXXXXXXXX"        # Used for top-50 / top-10 outreach
+  name: "Ayush Goyal"
+  email: "goyalayush441@gmail.com"   # Used for all organizer communication
+  phone: "+91-9927338322"        # Used for top-50 / top-10 outreach
 
 team_members:
-  - name: "Member 1 Full Name"
-    email: "member1@example.com"
-    role: "ML Engineer"          # Optional, e.g. "Team Lead", "Backend", "Data"
-  - name: "Member 2 Full Name"
-    email: "member2@example.com"
-    role: "Data Engineer"
+  - name: "Ayush Goyal"
+    email: "goyalayush441@gmail.com"
+    role: "Lead"          # Optional, e.g. "Team Lead", "Backend", "Data"
   # Add more members as needed; solo participants list just one member
 
 # ============================================================================
 # Code and reproducibility
 # ============================================================================
-github_repo: "https://github.com/YOUR_USERNAME/YOUR_REPO"
+github_repo: "https://github.com/ayu-creatr/Candidates_ranking_system"
 # Required. Must be reachable. Private repos OK if you can grant organizer
 # access at Stage 3 (the email to add will be communicated then).
 
-sandbox_link: "https://huggingface.co/spaces/YOUR_USERNAME/redrob-ranker"
+sandbox_link: "https://candidatesrankingsystem-redrobai.streamlit.app/"
 # Required. A working hosted environment where the ranker can be run on a small
 # candidate sample. See Section 10.5 of submission_spec.md for acceptable
 # platforms (HuggingFace Spaces, Streamlit Cloud, Replit, Colab, Docker, Binder).
@@ -43,15 +40,15 @@ reproduce_command: "python rank.py --candidates ./candidates.jsonl --out ./submi
 # Compute environment
 # ============================================================================
 compute:
-  platform: "MacBook Pro M2"                    # Or: "AWS EC2 c5.4xlarge", "Local Linux box", etc.
-  cpu_cores: 8                                  # Number of CPU cores used
-  ram_gb: 16                                    # Available RAM in GB
-  python_version: "3.11.4"                      # python --version
-  os: "macOS 14.2"                              # Or "Ubuntu 22.04 LTS", etc.
+  platform: "HP 15s Ryzen 5 7520u"
+  cpu_cores: 4
+  ram_gb: 8
+  python_version: "3.11"
+  os: "Windows 11"
   uses_gpu_for_inference: false                 # Must be false — see compute constraints
   has_network_during_ranking: false             # Must be false — no API calls during ranking
-  pre_computation_required: false               # true if you pre-compute embeddings or train models offline
-  pre_computation_time_minutes: 0               # Approximate, if applicable
+  pre_computation_required: true               # true if you pre-compute embeddings or train models offline
+  pre_computation_time_minutes: 180            # ~3 hours for encoding 100K summaries + career texts
 
 # ============================================================================
 # AI tools declaration
@@ -60,30 +57,48 @@ compute:
 # may verify these declarations against your code; declarations that contradict
 # your code or your interview are flagged.
 ai_tools_used:
-  - "Claude"        # e.g. for architecture discussion, code review
-  - "GitHub Copilot"  # e.g. for autocomplete
-  # Other options: "ChatGPT", "Cursor", "Gemini", "Codeium", "Other", "None"
+  - "Claude"
+  - "ChatGPT"
+  # Other options: "Cursor", "Gemini", "Codeium", "Other", "None"
 
 ai_usage_summary: |
-  Briefly describe how AI tools were used. Examples:
-  - "Used Claude for code review and architectural discussion. Used Copilot for autocomplete.
-     No candidate data was fed to any LLM."
-  - "Used ChatGPT to debug Python issues and Cursor for refactoring."
-  - "No AI tools used."
+  Claude (Anthropic) was the primary development partner for this project — used for
+  system architecture design, selecting the two-stage pipeline approach (precompute + rank),
+  designing the semantic gold-sentence scoring strategy that replaces keyword matching,
+  implementing the integrity/fraud detection rules (technology anachronism, experience
+  mismatch, duplicated career narratives), and iterating on scoring weights.
+
+  ChatGPT (OpenAI) was used for exploratory research and general Q&A — understanding
+  the trade-offs between BM25 vs. dense retrieval, discussing NDCG/MRR evaluation
+  frameworks, and validating ideas around behavioral signal weighting.
+
+  No candidate profile data was ever fed to any external LLM. All scoring logic
+  runs entirely offline on pre-computed artifacts. The final implementation,
+  design decisions, and scoring formula are the original work of the submitter.
 
 # ============================================================================
 # Approach summary (optional but recommended)
 # ============================================================================
 methodology_summary: |
-  ≤200 word summary of your approach. Strongly recommended.
+  A deterministic two-stage pipeline built to resist all JD-explicit traps.
 
-  Example:
-  "Rule-based ranker with explicit reasoning capture. Five scoring components
-  (skills, title+career, experience years, location, education) combined with
-  a multiplicative behavioral-signal modifier. The title component is the
-  decisive signal against keyword-stuffer traps; an endorsement-and-duration
-  trust multiplier on skills catches lazy keyword stuffing. Runtime is ~10
-  seconds for 50K candidates on CPU."
+  Stage 1 (precompute.py — run once): all-MiniLM-L6-v2 encodes the expanded JD, 100K
+  candidate summaries, 100K career descriptions, and ~700 distinct skills into numpy
+  artifacts. Population-level P1/P99/P95 statistics are measured and frozen.
+
+  Stage 2 (rank.py — ~90 sec): nine base components are combined —
+  (1) Semantic score: P1/P99-rescaled cosine similarity of JD vs. career embedding (28%);
+  (2) Production score: gold-sentence embedding similarity against 7 "shipped real systems"
+      reference sentences — defeats keyword stuffing by non-tech profiles (20%);
+  (3) Ownership score: gold-sentence sim for "owned the ranking layer" patterns (10%);
+  (4) Evaluation score: gold-sentence sim for NDCG/MRR/A-B evaluation patterns (10%);
+  (5) Retrieval score: gold-sentence sim for BM25/dense/hybrid retrieval patterns (9%);
+  (6) Skill score: semantic anchor matching with proficiency, duration, endorsement weights (8%);
+  (7) Career depth: YoE band × product/service ratio × tenure stability (7%);
+  (8) Title score: soft gradient covering 35+ titles (5%); (9) Location (3%).
+  Behavioral signals (availability, engagement, GitHub activity, notice period) contribute
+  25% of the final score. A seven-rule integrity gate (experience mismatch, technology
+  anachronism, duplicated narratives, honeypot company dates) hard-zeros fraudulent profiles.
 
 # ============================================================================
 # Declarations
@@ -92,5 +107,5 @@ declarations:
   read_submission_spec: true        # I have read submission_spec.md in full
   code_is_original_work: true       # My code is my team's original work (using AI as a tool is fine)
   no_collusion: true                # I have not coordinated my submission with other teams
-  honeypot_check_done: false        # OPTIONAL — set true if you explicitly checked for honeypots in your ranking
+  honeypot_check_done: true         # Explicitly checked — anachronism gate + company founding year validation
   reproduction_tested: true         # I have tested that my reproduce_command runs end-to-end

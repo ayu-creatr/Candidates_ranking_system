@@ -129,11 +129,9 @@ candidate_ranking_system/
 ```bash
 # 0. Install dependencies
 pip install -r requirements.txt
-# NOTE: numpy==1.26.4 is pinned — numpy 2.x breaks sklearn/scipy ABI
 
 # 1. Build artifacts (run once, ~3 hours on CPU)
-python precompute.py \
-  --candidates "[PUB] India_runs_data_and_ai_challenge\India_runs_data_and_ai_challenge\candidates.jsonl"
+python precompute.py --candidates "[PUB] India_runs_data_and_ai_challenge\India_runs_data_and_ai_challenge\candidates.jsonl"
 
 # 2. Validate output from precompute
 #    Check printed ranges:
@@ -763,25 +761,3 @@ tqdm==4.66.4                   # Progress bars during precompute
 
 ---
 
-## 15. AI Tools Declaration
-
-This submission was built with AI assistance:
-
-- **Architecture:** Developed iteratively across 7 plan versions, each grounded in EDA  
-  numbers from the actual 100K dataset (not estimates).
-- **EDA:** Run independently using Python scripts against the full `candidates.jsonl`.
-- **JD cross-referencing:** The raw `job_description.docx` was read in full;  
-  PROD_T1/T2 expansions, RESEARCH_NEGS, title-velocity penalty, and temporal signal  
-  were all derived directly from JD text, not from generic ML best practices.
-- **Code:** Written with AI assistance; every function implements an explicit design  
-  decision traceable to a JD quote or an EDA number.
-- **No data leakage:** Normalization constants (P1/P99, P95) are computed from the  
-  population at precompute time and saved to disk. `rank.py` reads them from the file —  
-  it never sees the full population distribution during scoring.
-
-The scoring system is **deterministic and fully reproducible** from `candidates.jsonl`  
-and the code in this repository.
-
----
-
-*Built for the Redrob India Runs Data & AI Challenge.*
