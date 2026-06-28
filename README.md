@@ -139,17 +139,17 @@ python precompute.py --candidates "[PUB] India_runs_data_and_ai_challenge\India_
 #    · production_p99 < 0.50 → PROD_RESCALE activates automatically
 
 # 3. Score all 100K candidates (~90 sec)
-python rank.py \
-  --candidates "[PUB] India_runs_data_and_ai_challenge\India_runs_data_and_ai_challenge\candidates.jsonl" \
+python rank.py 
+  --candidates "[PUB] India_runs_data_and_ai_challenge\India_runs_data_and_ai_challenge\candidates.jsonl" 
   --out submission.csv
 
 # 4. Validate
 python "[PUB] India_runs_data_and_ai_challenge\India_runs_data_and_ai_challenge\validate_submission.py" submission.csv
 
 # 5. Inspect top-50
-python audit.py \
-  --submission submission.csv \
-  --candidates "[PUB] India_runs_data_and_ai_challenge\India_runs_data_and_ai_challenge\candidates.jsonl" \
+python audit.py 
+  --submission submission.csv 
+  --candidates "[PUB] India_runs_data_and_ai_challenge\India_runs_data_and_ai_challenge\candidates.jsonl" 
   --top 50
 
 # 6. Run interactive Streamlit Sandbox locally
